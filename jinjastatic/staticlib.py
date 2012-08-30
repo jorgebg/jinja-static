@@ -17,7 +17,7 @@ except ImportError:
     from ordereddict import OrderedDict
 
 import envoy
-import jinjatagext
+import jinjatag
 
 from utils import is_updated
 import notify
@@ -109,24 +109,29 @@ style_formats = {
 }
 
 
-@jinjatagext.simple_context_tag
+@jinjatag.simple_context_tag
 def script(ctx, src, **kwargs):
     return _handle_tag(u'text/javascript', ctx,
                        src, **kwargs)
 
 
-@jinjatagext.simple_context_tag
+@jinjatag.simple_context_tag
 def style(ctx, href, **kwargs):
     return _handle_tag(u'text/css', ctx, href, **kwargs)
 
-@jinjatagext.simple_context_tag
+@jinjatag.simple_context_tag
 def less(ctx, href, **kwargs):
     return _handle_tag(u'text/less', ctx, href, **kwargs)
 
-@jinjatagext.simple_context_tag
+@jinjatag.simple_context_tag
 def coffee(ctx, src, **kwargs):
     return _handle_tag(u'text/coffeescript', ctx,
                        src, **kwargs)
+
+@jinjatag.simple_block
+def inline(body, less=None, coffee=None):
+    mime = less or coffee
+    return inline_pre_compile(body, mime)
 
 def clear_data():
     try:
@@ -245,6 +250,22 @@ def pre_compile(src, type_, head, ctxname):
 
     _run_precompile(old_file, new_name, compiler)
 
+def inline_pre_compile(body, mime,):
+    type_ = ext_mime[mime]
+    compiler, type_, ext = pre_compilers[type_][:3]
+
+    old_file = '/tmp/jinja-old'
+    new_file = '/tmp/jinja-new.js'
+
+    with open(old_file, 'wb+') as f:
+        f.write(body)
+
+    _run_precompile(old_file, new_file, compiler)
+
+    with open(new_file) as f:
+        new_body = f.read()
+
+    return new_body
 
 def _run_precompile(old_file, new_file, compiler):
     logger.info('Pre-compiling {0} -> {1}'.format(old_file, new_file))
@@ -257,7 +278,7 @@ def _run_precompile(old_file, new_file, compiler):
         params['output'] = pipes.quote(new_file)
 
     output = run_command(compiler % params)
-
+    
     if not use_stdout:
         return
     with open(new_file, 'wb+') as f:
